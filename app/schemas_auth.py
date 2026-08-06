@@ -17,3 +17,4 @@ class LoginSaida(BaseModel):
     nome: str
     email: str
     papel: str
+    senha_provisoria: bool

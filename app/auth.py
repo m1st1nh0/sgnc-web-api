@@ -28,6 +28,7 @@ class UsuarioLogado:
     nome: str
     email: str
     papel: str  # "adm" | "supervisor" | "funcionario"
+    senha_provisoria: bool
     token: str  # guardamos o token para repassar nas próximas consultas
 
 
@@ -51,7 +52,7 @@ def usuario_atual(
     # a policy "usuarios_ler_proprio" garante que ele pode ler a si mesmo)
     resultado = (
         cliente.table("usuarios")
-        .select("id, nome, email, papel, ativo")
+        .select("id, nome, email, papel, ativo, senha_provisoria")
         .eq("id", usuario_id)
         .single()
         .execute()
@@ -75,6 +76,7 @@ def usuario_atual(
         nome=dados["nome"],
         email=dados["email"],
         papel=dados["papel"],
+        senha_provisoria=dados["senha_provisoria"],
         token=token,
     )
 

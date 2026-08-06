@@ -41,7 +41,7 @@ def login(dados: LoginEntrada):
     cliente = cliente_do_usuario(token)
     resultado = (
         cliente.table("usuarios")
-        .select("id, nome, email, papel, ativo")
+        .select("id, nome, email, papel, ativo, senha_provisoria")
         .eq("id", usuario_id)
         .single()
         .execute()
@@ -66,4 +66,5 @@ def login(dados: LoginEntrada):
         nome=dados_usuario["nome"],
         email=dados_usuario["email"],
         papel=dados_usuario["papel"],
+        senha_provisoria=dados_usuario["senha_provisoria"],
     )
