@@ -83,6 +83,21 @@ def _montar_saida_nc(cliente, nc: dict) -> dict:
 # Abertura e edição
 # =====================================================
 
+def _buscar_colaborador(cliente, colaborador_id: str) -> dict | None:
+    """Busca nome e setor do colaborador para preencher a NC
+    automaticamente - essas informações não são mais digitadas
+    livremente no formulário, vêm do cadastro do usuário."""
+    if not colaborador_id:
+        return None
+    resultado = (
+        cliente.table("usuarios")
+        .select("nome, setor")
+        .eq("id", colaborador_id)
+        .execute()
+    )
+    return resultado.data[0] if resultado.data else None
+
+
 def criar_nc(usuario: UsuarioLogado, dados) -> dict:
     """Qualquer papel pode abrir uma NC. Nasce em 'aberta', aguardando
     avaliação do ADM sobre se é procedente."""
@@ -91,17 +106,19 @@ def criar_nc(usuario: UsuarioLogado, dados) -> dict:
     causa_ids = obter_ou_criar_causas(cliente, dados.causas, usuario.id)
     reincidencia = calcular_reincidencia(cliente, causa_ids)
 
+    colaborador = _buscar_colaborador(cliente, dados.colaborador_id)
+
     payload = {
         "chamado": dados.chamado,
-        "setor": dados.setor,
-        "colaborador": dados.colaborador,
+        "setor": colaborador["setor"] if colaborador else None,
+        "colaborador": colaborador["nome"] if colaborador else None,
         "colaborador_id": dados.colaborador_id,
         "criticidade": dados.criticidade,
         "reincidencia": reincidencia,
         "status": "aberta",
         "descricao": dados.descricao,
         "aberto_por": usuario.id,
-        "setor_responsavel": dados.setor_responsavel,
+        "setor_responsavel": colaborador["setor"] if colaborador else None,
     }
     if dados.data is not None:
         payload["data"] = dados.data.isoformat()
@@ -145,15 +162,17 @@ def atualizar_nc(usuario: UsuarioLogado, nc_id: int, dados) -> dict:
     causa_ids = obter_ou_criar_causas(cliente, dados.causas, usuario.id)
     reincidencia = calcular_reincidencia(cliente, causa_ids, nc_id_excluir=nc_id)
 
+    colaborador = _buscar_colaborador(cliente, dados.colaborador_id)
+
     payload = {
         "chamado": dados.chamado,
-        "setor": dados.setor,
-        "colaborador": dados.colaborador,
+        "setor": colaborador["setor"] if colaborador else None,
+        "colaborador": colaborador["nome"] if colaborador else None,
         "colaborador_id": dados.colaborador_id,
         "criticidade": dados.criticidade,
         "reincidencia": reincidencia,
         "descricao": dados.descricao,
-        "setor_responsavel": dados.setor_responsavel,
+        "setor_responsavel": colaborador["setor"] if colaborador else None,
     }
     if dados.data is not None:
         payload["data"] = dados.data.isoformat()

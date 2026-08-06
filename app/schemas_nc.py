@@ -8,16 +8,16 @@ from pydantic import BaseModel
 class NcEntrada(BaseModel):
     """Dados enviados ao abrir ou editar uma NC.
     Qualquer papel pode abrir (aberto_por = usuário logado, definido
-    pela API, não pelo cliente)."""
+    pela API, não pelo cliente).
+    Note: não há mais campo de "setor" aqui - ele é preenchido
+    automaticamente pela API a partir do cadastro do colaborador
+    (usuarios.setor), não é mais texto livre por NC."""
     data: Optional[date] = None
     chamado: Optional[str] = None
-    setor: Optional[str] = None
-    colaborador: Optional[str] = None
     colaborador_id: Optional[str] = None  # uuid de quem a NC é sobre
     criticidade: str = "Baixa"
     descricao: Optional[str] = None
     causas: list[str] = []
-    setor_responsavel: Optional[str] = None
 
 
 class NcAvaliar(BaseModel):
