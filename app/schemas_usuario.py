@@ -1,5 +1,4 @@
 from typing import Optional
-
 from pydantic import BaseModel, EmailStr
 
 
@@ -8,8 +7,19 @@ class UsuarioEntrada(BaseModel):
     email: EmailStr
     papel: str  # "adm" | "supervisor" | "funcionario"
     setor: Optional[str] = None
-    supervisor_id: Optional[str] = None  # uuid; obrigatório se papel != "adm"
+    supervisor_id: Optional[str] = None
     senha_inicial: str
+
+
+class UsuarioEdicao(BaseModel):
+    """Campos editáveis após o cadastro. Email não entra aqui —
+    trocar email no Supabase Auth é uma operação separada e mais
+    delicada (envolve reconfirmação), então deixamos fora do CRUD
+    básico por ora."""
+    nome: str
+    papel: str
+    setor: Optional[str] = None
+    supervisor_id: Optional[str] = None
 
 
 class UsuarioSaida(BaseModel):

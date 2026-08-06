@@ -1,16 +1,5 @@
 """
 Cadastro e gestão de usuários do sistema.
-
-Criar um usuário é uma operação em duas etapas encadeadas:
-1. Criar o login no Supabase Auth (isso exige a chave service_role,
-   porque é uma ação "administrativa" que nenhum usuário comum,
-   nem mesmo o ADM com seu próprio token, tem permissão de fazer)
-2. Inserir o registro correspondente na tabela `usuarios`, com o
-   MESMO id gerado no passo 1
-
-Se o passo 2 falhar depois do passo 1 ter dado certo, ficaríamos com
-um login "órfão" no Auth sem registro no sistema. Por isso, se o
-passo 2 falhar, desfazemos o passo 1 (apagamos o usuário do Auth).
 """
 from fastapi import HTTPException, status
 
@@ -35,12 +24,11 @@ def criar_usuario(usuario_logado: UsuarioLogado, dados) -> dict:
 
     servico = cliente_servico()
 
-    # Etapa 1: cria o login no Supabase Auth
     try:
         resposta_auth = servico.auth.admin.create_user({
             "email": dados.email,
             "password": dados.senha_inicial,
-            "email_confirm": True,  # já nasce confirmado, sem precisar clicar em link de email
+            "email_confirm": True,
         })
     except Exception as e:
         raise HTTPException(
@@ -50,7 +38,6 @@ def criar_usuario(usuario_logado: UsuarioLogado, dados) -> dict:
 
     novo_id = resposta_auth.user.id
 
-    # Etapa 2: insere o registro na tabela usuarios
     try:
         criado = (
             servico.table("usuarios")
@@ -66,7 +53,6 @@ def criar_usuario(usuario_logado: UsuarioLogado, dados) -> dict:
             .execute()
         )
     except Exception as e:
-        # Desfaz o login criado no Auth, para não deixar "usuário fantasma"
         servico.auth.admin.delete_user(novo_id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -77,8 +63,6 @@ def criar_usuario(usuario_logado: UsuarioLogado, dados) -> dict:
 
 
 def listar_usuarios(usuario_logado: UsuarioLogado) -> list[dict]:
-    """RLS decide o que aparece: ADM vê todos; supervisor vê a si
-    mesmo e seus subordinados diretos; funcionário vê só a si mesmo."""
     cliente = cliente_do_usuario(usuario_logado.token)
     resultado = (
         cliente.table("usuarios")
@@ -89,14 +73,88 @@ def listar_usuarios(usuario_logado: UsuarioLogado) -> list[dict]:
     return resultado.data
 
 
+def editar_usuario(usuario_logado: UsuarioLogado, usuario_id: str, dados) -> dict:
+    if dados.papel not in PAPEIS_VALIDOS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="papel inválido.")
+
+    if dados.papel != "adm" and not dados.supervisor_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="supervisor_id é obrigatório para papel 'funcionario' ou 'supervisor'.",
+        )
+
+    # Usa service_role para garantir que o ADM consegue editar qualquer usuário
+    # mesmo que RLS de SELECT não cubra todos os casos
+    servico = cliente_servico()
+    resultado = (
+        servico.table("usuarios")
+        .update({
+            "nome": dados.nome,
+            "papel": dados.papel,
+            "setor": dados.setor,
+            "supervisor_id": dados.supervisor_id if dados.papel != "adm" else None,
+        })
+        .eq("id", usuario_id)
+        .execute()
+    )
+
+    if not resultado.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
+
+    return resultado.data[0]
+
+
+def desativar_usuario(usuario_logado: UsuarioLogado, usuario_id: str) -> dict:
+    if usuario_id == usuario_logado.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Você não pode desativar sua própria conta.",
+        )
+
+    servico = cliente_servico()
+
+    # Desativa no Auth (impede login)
+    servico.auth.admin.update_user_by_id(usuario_id, {"ban_duration": "876000h"})
+
+    # Marca como inativo na nossa tabela
+    resultado = (
+        servico.table("usuarios")
+        .update({"ativo": False})
+        .eq("id", usuario_id)
+        .execute()
+    )
+
+    if not resultado.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
+
+    return resultado.data[0]
+
+
+def reativar_usuario(usuario_logado: UsuarioLogado, usuario_id: str) -> dict:
+    servico = cliente_servico()
+
+    # Remove o ban no Auth
+    servico.auth.admin.update_user_by_id(usuario_id, {"ban_duration": "none"})
+
+    resultado = (
+        servico.table("usuarios")
+        .update({"ativo": True})
+        .eq("id", usuario_id)
+        .execute()
+    )
+
+    if not resultado.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
+
+    return resultado.data[0]
+
+
 def trocar_senha(usuario_logado: UsuarioLogado, dados) -> None:
     cliente = cliente_do_usuario(usuario_logado.token)
 
     if len(dados.senha_nova) < 6:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nova senha deve ter ao menos 6 caracteres.")
 
-    # Confirma a senha atual tentando logar com ela (forma simples de
-    # validar sem duplicar lógica de hash/verificação por conta própria)
     try:
         cliente.auth.sign_in_with_password({
             "email": usuario_logado.email,
@@ -110,8 +168,6 @@ def trocar_senha(usuario_logado: UsuarioLogado, dados) -> None:
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Não foi possível trocar a senha: {e}")
 
-    # Usa o cliente de serviço para limpar a flag (o token antigo do
-    # usuário pode ter ficado inválido após a troca de senha)
     cliente_servico().table("usuarios").update({"senha_provisoria": False}).eq(
         "id", usuario_logado.id
     ).execute()
