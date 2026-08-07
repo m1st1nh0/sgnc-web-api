@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends
 from app.auth import UsuarioLogado, usuario_atual, exigir_adm
 from app.schemas_usuario import UsuarioEntrada, UsuarioEdicao, TrocarSenhaEntrada
 from app import usuario_service
+from app import nc_service
+
 
 router = APIRouter(prefix="/usuarios", tags=["usuários"])
 
@@ -12,9 +14,26 @@ def listar(usuario: UsuarioLogado = Depends(usuario_atual)):
     return usuario_service.listar_usuarios(usuario)
 
 
+@router.get("/{usuario_id}/estatisticas")
+def estatisticas(
+    usuario_id: str,
+    usuario: UsuarioLogado = Depends(usuario_atual),
+):
+    """
+    Estatísticas de reincidência e medidas disciplinares de um colaborador.
+
+    Regras de acesso:
+    - o próprio colaborador vê as próprias estatísticas;
+    - o supervisor direto vê as dos seus supervisionados;
+    - o ADM vê as de qualquer colaborador.
+    """
+    return nc_service.obter_estatisticas_colaborador(usuario, usuario_id)
+
+
 @router.post("")
 def cadastrar(dados: UsuarioEntrada, usuario: UsuarioLogado = Depends(exigir_adm)):
     return usuario_service.criar_usuario(usuario, dados)
+
 
 
 @router.put("/{usuario_id}")

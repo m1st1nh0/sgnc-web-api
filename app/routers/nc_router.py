@@ -74,3 +74,22 @@ def aceitar(nc_id: int, dados: NcAceite, usuario: UsuarioLogado = Depends(usuari
     confirmação exata): aguardando_aceite -> concluida.
     O RLS garante que só o colaborador dono da NC consegue gravar."""
     return nc_service.aceitar_nc(usuario, nc_id, dados)
+
+from app.schemas_nc import (
+    NcEntrada,
+    NcAvaliar,
+    NcFeedback,
+    NcAceite,
+    MedidaDisciplinarEntrada,
+)
+
+@router.post("/medidas-disciplinares", status_code=201)
+def registrar_medida_disciplinar(
+    dados: MedidaDisciplinarEntrada,
+    usuario: UsuarioLogado = Depends(exigir_adm),
+):
+    """Registra manualmente uma medida disciplinar (advertência,
+    suspensão ou avaliação de justa causa) aplicada pelo responsável
+    da qualidade. Nunca é chamada automaticamente pelo fluxo de
+    validação da NC — depende de uma ação explícita do ADM."""
+    return nc_service.registrar_medida_disciplinar(usuario, dados)

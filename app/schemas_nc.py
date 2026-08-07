@@ -1,7 +1,7 @@
 """Formato dos dados de entrada/saída dos endpoints de NC."""
 from datetime import date, datetime
 from typing import Optional
-
+from typing import Literal
 from pydantic import BaseModel
 
 
@@ -64,3 +64,24 @@ class NcSaida(BaseModel):
     aceito_em: Optional[datetime]
     criado_em: datetime
     atualizado_em: datetime
+
+
+
+class MedidaDisciplinarEntrada(BaseModel):
+    """
+    Dados enviados pelo responsável da qualidade
+    ao registrar manualmente uma medida disciplinar.
+    """
+
+    causa_id: int
+    nc_id: int
+    ocorrencia_gatilho: int
+
+    tipo: Literal[
+        "advertencia",
+        "suspensao",
+        "avaliar_justa_causa",
+    ]
+
+    dias_suspensao: Optional[int] = None
+    observacao: Optional[str] = None
