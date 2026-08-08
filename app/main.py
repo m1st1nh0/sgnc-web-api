@@ -9,6 +9,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "https://sgnc-web-frontend.vercel.app",
+        "https://sgnc-web-frontend-git-refa-bfa2cb-lukaschamposki-7496s-projects.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
