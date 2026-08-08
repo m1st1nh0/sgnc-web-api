@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.routers import auth_router, nc_router, usuario_router, evidencia_router
 
 app = FastAPI()
 app.add_middleware(
