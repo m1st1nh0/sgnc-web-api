@@ -14,7 +14,10 @@ app = FastAPI(
 # Em produção, troque "*" pela URL real do frontend.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://sgnc-web-frontend-SEU-ID.vercel.app"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://sgnc-web-frontend.vercel.app/",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
