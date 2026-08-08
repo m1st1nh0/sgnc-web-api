@@ -1,21 +1,10 @@
-from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth_router, nc_router, usuario_router, evidencia_router
-
-app = FastAPI(
-    title="SGNC API",
-    description="API do Sistema de Gestão de Não Conformidades",
-    version="0.1.0",
-)
-
-# CORS: permite que o React (rodando em outro endereço/porta)
-# consiga chamar esta API a partir do navegador.
-# Em produção, troque "*" pela URL real do frontend.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
+        "http://127.0.0.1:5173",
         "https://sgnc-web-frontend.vercel.app",
     ],
     allow_credentials=True,
