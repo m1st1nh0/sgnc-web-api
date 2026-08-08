@@ -1,0 +1,18 @@
+# Segredos
+.env
+.env.*
+!.env.example
+
+# Ambientes virtuais
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Editor e sistema
+.vscode/
+.idea/
+.DS_Store
