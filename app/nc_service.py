@@ -361,13 +361,13 @@ def registrar_medida_disciplinar(
     relacao_causa = resultado_causa.data[0]
     ocorrencia_atual = relacao_causa.get("ocorrencia_numero")
 
-    if ocorrencia_atual is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A causa ainda não possui ocorrência contabilizada.",
-        )
-
-    if ocorrencia_atual != dados.ocorrencia_gatilho:
+    # O "ocorrencia_numero" passou a ser gravado junto com a validação da NC.
+    # Para NCs antigas (legadas) ele pode estar nulo; nesses casos confiamos
+    # no número informado pelo responsável autorizado no registro manual.
+    if (
+        ocorrencia_atual is not None
+        and ocorrencia_atual != dados.ocorrencia_gatilho
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
@@ -1029,6 +1029,8 @@ def obter_estatisticas_colaborador(
                 "causa": descricao,
                 "ocorrencias_12m": 0,
                 "ultima_ocorrencia_numero": None,
+                "ultima_ocorrencia_nc_id": None,
+                "medida_sugerida": None,
             }
 
         agrupado[causa_id]["ocorrencias_12m"] += 1
@@ -1037,6 +1039,26 @@ def obter_estatisticas_colaborador(
         atual = agrupado[causa_id]["ultima_ocorrencia_numero"]
         if numero is not None and (atual is None or numero > atual):
             agrupado[causa_id]["ultima_ocorrencia_numero"] = numero
+            agrupado[causa_id]["ultima_ocorrencia_nc_id"] = linha["nc_id"]
+        elif numero is None and atual is None:
+            # NCs legadas sem número de ocorrência gravado: usamos a NC mais
+            # recente da causa (maior id) como referência para o registro manual.
+            referencia = agrupado[causa_id]["ultima_ocorrencia_nc_id"]
+            if referencia is None or linha["nc_id"] > referencia:
+                agrupado[causa_id]["ultima_ocorrencia_nc_id"] = linha["nc_id"]
+
+    # Garante que a "última ocorrência contabilizada" sempre apareça na tela.
+    # Para NCs legadas, o "ocorrencia_numero" pode nunca ter sido gravado
+    # (a gravação passou a existir junto com a validação). Nesses casos a
+    # contagem de ocorrências da janela é o valor mais fiel disponível.
+    for info in agrupado.values():
+        if info["ultima_ocorrencia_numero"] is None and info["ocorrencias_12m"] > 0:
+            info["ultima_ocorrencia_numero"] = info["ocorrencias_12m"]
+        # Sugestão de medida disciplinar conforme a regra de gatilho
+        # (4ª, 7ª, 10ª, ... ocorrências da mesma causa).
+        info["medida_sugerida"] = decidir_medida_disciplina(
+            info["ultima_ocorrencia_numero"]
+        )
 
     resultado_medidas = (
         cliente.table("medidas_disciplinares")
