@@ -1,10 +1,13 @@
 from datetime import date, datetime, timezone, timedelta
+import logging
 
 from fastapi import HTTPException, status
 
 from app.auth import UsuarioLogado
 from app.schemas_nc import TEXTO_ACEITE_ESPERADO
 from app.supabase_client import cliente_do_usuario, cliente_servico
+
+logger = logging.getLogger("app.nc_service")
 
 
 STATUS_QUE_CONTAM_REINCIDENCIA = [
@@ -935,15 +938,25 @@ def _registrar_historico(
     status_novo: str,
     observacao: str | None,
 ):
-    cliente_servico().table("historico_nc").insert(
-        {
-            "nc_id": nc_id,
-            "usuario_id": usuario_id,
-            "status_anterior": status_anterior,
-            "status_novo": status_novo,
-            "observacao": observacao,
-        }
-    ).execute()
+    """Grava o histórico da NC (auditoria) usando o service_role.
+
+    O registro de histórico é auxiliar: uma falha aqui NÃO pode impedir a
+    operação principal (ex: abrir a NC) nem fazer o cliente repetir a
+    chamada e criar registros duplicados. Por isso a gravação é protegida
+    e apenas logada em caso de erro.
+    """
+    try:
+        cliente_servico().table("historico_nc").insert(
+            {
+                "nc_id": nc_id,
+                "usuario_id": usuario_id,
+                "status_anterior": status_anterior,
+                "status_novo": status_novo,
+                "observacao": observacao,
+            }
+        ).execute()
+    except Exception:
+        logger.exception("Falha ao registrar histórico da NC %s", nc_id)
 
 # =====================================================
 # Estatísticas de reincidência por colaborador

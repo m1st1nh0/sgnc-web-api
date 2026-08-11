@@ -94,3 +94,19 @@ def exigir_adm(usuario: UsuarioLogado = Depends(usuario_atual)) -> UsuarioLogado
             detail="Apenas o administrador (ticket manager) pode fazer isso.",
         )
     return usuario
+
+
+def exigir_gestao(usuario: UsuarioLogado = Depends(usuario_atual)) -> UsuarioLogado:
+    """Dependência para rotas abertas a ADM e supervisores (ex: Insights).
+
+    Nota: assim como exigir_adm, é uma camada de clareza da API. A
+    garantia "de verdade" continua sendo o RLS no banco.
+    """
+    if usuario.papel not in {"adm", "supervisor"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Acesso restrito a administradores e supervisores."
+            ),
+        )
+    return usuario
