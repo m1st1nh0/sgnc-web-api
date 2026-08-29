@@ -74,8 +74,9 @@ def _consulta_usuarios_por_escopo(usuario_logado: UsuarioLogado, selecao: str):
     - Supervisor: somente subordinados diretos;
     - Funcionário: somente o próprio cadastro.
 
-    O escopo é calculado pelo servidor a partir do usuário autenticado; o
-    navegador nunca escolhe um ``supervisor_id`` para ampliar a consulta.
+    Esse escopo vale para telas administrativas e estatísticas. O diretório
+    mínimo usado na abertura de NC é intencionalmente global, pois qualquer
+    usuário autenticado pode abrir uma NC sobre qualquer colaborador ativo.
     """
     consulta = cliente_servico().table("usuarios").select(selecao)
     if usuario_logado.papel == "supervisor":
@@ -98,13 +99,17 @@ def listar_usuarios(usuario_logado: UsuarioLogado) -> list[dict]:
 
 
 def listar_opcoes_nc(usuario_logado: UsuarioLogado) -> list[dict]:
-    """Diretório mínimo para selecionar o colaborador de uma NC.
+    """Diretório mínimo global para selecionar o colaborador de uma NC.
 
-    Usa o mesmo escopo de equipe da listagem de usuários, mas não expõe
-    email, papel, status de senha ou outros dados administrativos.
+    Qualquer usuário autenticado pode abrir uma NC sobre qualquer colaborador
+    ativo. Para preservar minimização de dados, este endpoint usa service_role
+    no servidor e retorna somente ``id``, ``nome`` e ``setor``. A listagem
+    administrativa de usuários continua obedecendo ao escopo por papel.
     """
     resultado = (
-        _consulta_usuarios_por_escopo(usuario_logado, "id, nome, setor, ativo")
+        cliente_servico()
+        .table("usuarios")
+        .select("id, nome, setor, ativo")
         .eq("ativo", True)
         .order("nome")
         .execute()
