@@ -1,8 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# PR01: mantém helpers legados de reincidência compatíveis com o status novo.
-from app import flow_compat  # noqa: F401
 from app.routers import (
     auth_router,
     nc_router,
