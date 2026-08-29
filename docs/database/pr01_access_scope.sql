@@ -1,19 +1,11 @@
--- PR01 - Escopo de equipe, fluxo aguardando_feedback e fechamento da Data API
+-- PR01 - etapa B: escopo de equipe, RLS e fechamento da Data API
+-- Pré-requisito: pr01_add_status.sql já aplicado e committed.
 -- Aplicar SOMENTE após o backend desta PR estar implantado.
--- O backend novo usa service_role para mutações e mantém o token do usuário
--- apenas para leituras protegidas por RLS.
 
 begin;
 
 -- =============================================================
--- 1. Novo status do fluxo simplificado
--- =============================================================
-
-alter type public.status_nc
-    add value if not exists 'aguardando_feedback' after 'validada';
-
--- =============================================================
--- 2. Helpers privados usados exclusivamente pelo RLS
+-- 1. Helpers privados usados exclusivamente pelo RLS
 -- =============================================================
 
 create schema if not exists private;
@@ -52,7 +44,6 @@ revoke all on function private.e_meu_subordinado(uuid) from public, anon;
 grant execute on function private.meu_papel() to authenticated;
 grant execute on function private.e_meu_subordinado(uuid) to authenticated;
 
--- Trigger sem dados sensíveis, mas com search_path imutável.
 create or replace function public.set_atualizado_em()
 returns trigger
 language plpgsql
@@ -65,7 +56,7 @@ end;
 $$;
 
 -- =============================================================
--- 3. RLS de usuários: ADM global; supervisor equipe direta;
+-- 2. RLS de usuários: ADM global; supervisor equipe direta;
 --    funcionário somente o próprio cadastro.
 -- =============================================================
 
@@ -85,7 +76,7 @@ using (
 );
 
 -- =============================================================
--- 4. RLS de NCs
+-- 3. RLS de NCs
 --    aberta/invalidada/validada-legado: ADM + autor
 --    após validação: ADM + autor + alvo + supervisor direto
 -- =============================================================
@@ -117,7 +108,7 @@ using (
 );
 
 -- =============================================================
--- 5. Tabelas derivadas seguem a visibilidade da NC
+-- 4. Tabelas derivadas seguem a visibilidade da NC
 -- =============================================================
 
 drop policy if exists nc_causas_visivel_conforme_nc on public.nc_causas;
@@ -181,10 +172,9 @@ using (
 );
 
 -- =============================================================
--- 6. Mutações passam exclusivamente pelo FastAPI/service_role
+-- 5. Mutações passam exclusivamente pelo FastAPI/service_role
 -- =============================================================
 
--- Remove policies de escrita do token de usuário.
 drop policy if exists usuarios_adm_insere on public.usuarios;
 drop policy if exists usuarios_adm_atualiza on public.usuarios;
 
@@ -201,7 +191,6 @@ drop policy if exists evidencias_adm_insere on public.evidencias;
 drop policy if exists evidencias_adm_exclui on public.evidencias;
 drop policy if exists medidas_insert_adm on public.medidas_disciplinares;
 
--- Anon não precisa acessar tabelas da aplicação.
 revoke all privileges on table
     public.usuarios,
     public.nao_conformidades,
@@ -212,7 +201,6 @@ revoke all privileges on table
     public.medidas_disciplinares
 from anon;
 
--- Usuários autenticados ficam somente com SELECT.
 revoke insert, update, delete, truncate, references, trigger on table
     public.usuarios,
     public.nao_conformidades,
@@ -234,7 +222,7 @@ grant select on table
     to authenticated;
 
 -- =============================================================
--- 7. Converte estados legados depois que a API nova já estiver online
+-- 6. Converte estados legados no momento do cutover
 -- =============================================================
 
 update public.nao_conformidades
@@ -245,7 +233,7 @@ update public.nao_conformidades
     'aguardando_analise'::public.status_nc
  );
 
--- As policies já não dependem mais dos helpers públicos antigos.
+-- Policies já não dependem dos helpers públicos antigos.
 drop function if exists public.e_meu_subordinado(uuid);
 drop function if exists public.meu_papel();
 
