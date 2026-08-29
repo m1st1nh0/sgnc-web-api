@@ -1,4 +1,4 @@
-name: PR02 production smoke
+name: PR03 production smoke
 
 on:
   push:
@@ -11,21 +11,28 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Confirm Render deployed PR02 API
+      - name: Confirm Render deployed PR03 API
         shell: bash
         run: |
           set -euo pipefail
           for attempt in $(seq 1 24); do
             echo "Attempt ${attempt}/24"
-            if curl -fsS --max-time 20 https://sgnc-web-api.onrender.com/ -o health.json; then
+            if curl -fsS --max-time 20 https://sgnc-web-api.onrender.com/openapi.json -o openapi.json; then
               if python - <<'PY'
           import json
-          with open('health.json', encoding='utf-8') as f:
+          with open('openapi.json', encoding='utf-8') as f:
               doc = json.load(f)
-          if doc.get('dominio') != 'recorrencia-v2':
-              print('PR02 marker not deployed yet:', doc)
+          paths = doc.get('paths', {})
+          required = [
+              '/usuarios/opcoes-nc',
+              '/insights',
+              '/nc/{nc_id}/timeline',
+          ]
+          missing = [path for path in required if path not in paths]
+          if missing:
+              print('PR03 contract not fully deployed yet. Missing:', missing)
               raise SystemExit(1)
-          print('PR02 API detected in production:', doc)
+          print('PR03 API contract detected in production.')
           PY
               then
                 exit 0
@@ -33,5 +40,5 @@ jobs:
             fi
             sleep 10
           done
-          echo 'Render did not expose the PR02 domain marker within smoke window.' >&2
+          echo 'Render did not expose the PR03 API contract within smoke window.' >&2
           exit 1
