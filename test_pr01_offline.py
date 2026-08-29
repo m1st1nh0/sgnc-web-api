@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.auth import UsuarioLogado, exigir_gestao, exigir_senha_definitiva
 import app.insights_service_v2 as insights
+import app.usuario_service as usuarios
 
 
 class Resp:
@@ -29,6 +30,9 @@ class Query:
         self.filters.append(("in", col, list(vals)))
         return self
 
+    def order(self, _col, desc=False):
+        return self
+
     def execute(self):
         rows = list(self.rows)
         for op, col, val in self.filters:
@@ -49,9 +53,34 @@ class FakeServico:
 
 TABLES = {
     "usuarios": [
-        {"id": "a", "supervisor_id": "sup1"},
-        {"id": "b", "supervisor_id": "sup1"},
-        {"id": "c", "supervisor_id": "sup2"},
+        {
+            "id": "a",
+            "nome": "Ana",
+            "setor": "A",
+            "ativo": True,
+            "supervisor_id": "sup1",
+        },
+        {
+            "id": "b",
+            "nome": "Bia",
+            "setor": "B",
+            "ativo": True,
+            "supervisor_id": "sup1",
+        },
+        {
+            "id": "c",
+            "nome": "Carlos",
+            "setor": "C",
+            "ativo": True,
+            "supervisor_id": "sup2",
+        },
+        {
+            "id": "d",
+            "nome": "Desativado",
+            "setor": "D",
+            "ativo": False,
+            "supervisor_id": "sup2",
+        },
     ],
     "nao_conformidades": [
         {
@@ -158,6 +187,17 @@ liberado = exigir_senha_definitiva(
     UsuarioLogado("u", "U", "u@x", "funcionario", False, "fake")
 )
 assert liberado.id == "u"
+
+# Qualquer usuário autenticado pode selecionar qualquer colaborador ativo
+# para abrir uma NC. O endpoint permanece mínimo e não expõe dados de gestão.
+usuarios.cliente_servico = lambda: FakeServico(TABLES)
+funcionario = UsuarioLogado(
+    "a", "Ana", "ana@x", "funcionario", False, "fake"
+)
+opcoes_nc = usuarios.listar_opcoes_nc(funcionario)
+assert {item["id"] for item in opcoes_nc} == {"a", "b", "c"}
+assert all(set(item) == {"id", "nome", "setor"} for item in opcoes_nc)
+assert all(item["id"] != "d" for item in opcoes_nc)
 
 # A rota HTTP usa exatamente o mesmo serviço V2 mockado, sem tocar na rede.
 from app.main import app
