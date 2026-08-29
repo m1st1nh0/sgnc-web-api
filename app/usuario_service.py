@@ -2,6 +2,7 @@
 from fastapi import HTTPException, status
 
 from app.auth import UsuarioLogado
+from app.security_hardening import validar_senha_forte
 from app.supabase_client import cliente_do_usuario, cliente_servico
 
 PAPEIS_VALIDOS = {"adm", "supervisor", "funcionario"}
@@ -17,11 +18,7 @@ def criar_usuario(usuario_logado: UsuarioLogado, dados) -> dict:
             detail="supervisor_id é obrigatório para papel 'funcionario' ou 'supervisor'.",
         )
 
-    if len(dados.senha_inicial) < 6:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Senha inicial deve ter ao menos 6 caracteres.",
-        )
+    validar_senha_forte(dados.senha_inicial)
 
     servico = cliente_servico()
 
@@ -99,13 +96,7 @@ def listar_usuarios(usuario_logado: UsuarioLogado) -> list[dict]:
 
 
 def listar_opcoes_nc(usuario_logado: UsuarioLogado) -> list[dict]:
-    """Diretório mínimo global para selecionar o colaborador de uma NC.
-
-    Qualquer usuário autenticado pode abrir uma NC sobre qualquer colaborador
-    ativo. Para preservar minimização de dados, este endpoint usa service_role
-    no servidor e retorna somente ``id``, ``nome`` e ``setor``. A listagem
-    administrativa de usuários continua obedecendo ao escopo por papel.
-    """
+    """Diretório mínimo global para selecionar o colaborador de uma NC."""
     resultado = (
         cliente_servico()
         .table("usuarios")
@@ -200,12 +191,7 @@ def reativar_usuario(usuario_logado: UsuarioLogado, usuario_id: str) -> dict:
 
 def trocar_senha(usuario_logado: UsuarioLogado, dados) -> None:
     cliente = cliente_do_usuario(usuario_logado.token)
-
-    if len(dados.senha_nova) < 6:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Nova senha deve ter ao menos 6 caracteres.",
-        )
+    validar_senha_forte(dados.senha_nova)
 
     try:
         cliente.auth.sign_in_with_password(
