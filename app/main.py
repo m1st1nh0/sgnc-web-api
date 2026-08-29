@@ -7,6 +7,7 @@ from app.routers import (
     usuario_router,
     evidencia_router,
     insights_router,
+    relatorios_router,
 )
 
 app = FastAPI()
@@ -32,6 +33,7 @@ app.include_router(nc_router.router)
 app.include_router(usuario_router.router)
 app.include_router(evidencia_router.router)
 app.include_router(insights_router.router)
+app.include_router(relatorios_router.router)
 
 
 @app.get("/")
