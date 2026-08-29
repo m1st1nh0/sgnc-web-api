@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, pr01-access-scope-feedback-flow, pr02-reincidencia-v2]
+    branches: [main, pr01-access-scope-feedback-flow, pr02-reincidencia-v2, pr03-workflow-atomic-timeline]
 
 permissions:
   contents: read
@@ -38,3 +38,5 @@ jobs:
         run: python test_pr01_offline.py
       - name: PR02 recurrence V2 tests
         run: python test_pr02_offline.py
+      - name: PR03 atomic workflow and timeline tests
+        run: python test_pr03_offline.py
