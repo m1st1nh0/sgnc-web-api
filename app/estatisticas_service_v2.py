@@ -9,7 +9,8 @@ from app.recurrence_v2 import (
     STATUS_QUE_CONTAM_REINCIDENCIA,
     inicio_janela_12_meses,
 )
-from app import nc_service as legacy
+from app import insights_service as insights_legacy
+from app import nc_service as nc_legacy
 
 
 def obter_estatisticas_colaborador(
@@ -57,7 +58,7 @@ def obter_estatisticas_colaborador(
     ncs_12m = resultado_ncs.data
     ids_ncs_12m = [nc["id"] for nc in ncs_12m]
     data_por_nc = {
-        nc["id"]: legacy._parsear_data(nc.get("data")) or date.min
+        nc["id"]: insights_legacy._parsear_data(nc.get("data")) or date.min
         for nc in ncs_12m
     }
 
@@ -101,7 +102,7 @@ def obter_estatisticas_colaborador(
     for info in agrupado.values():
         info.pop("_ultima_chave", None)
         if eh_adm and info["ultima_ocorrencia_numero"] is not None:
-            info["medida_sugerida"] = legacy.decidir_medida_disciplina(
+            info["medida_sugerida"] = nc_legacy.decidir_medida_disciplina(
                 info["ultima_ocorrencia_numero"]
             )
 
