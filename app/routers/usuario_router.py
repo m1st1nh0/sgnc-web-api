@@ -7,7 +7,7 @@ from app.auth import (
     usuario_atual,
 )
 from app.schemas_usuario import TrocarSenhaEntrada, UsuarioEdicao, UsuarioEntrada
-from app import nc_service_v2 as nc_service
+from app import estatisticas_service_v2
 from app import usuario_service
 
 router = APIRouter(prefix="/usuarios", tags=["usuários"])
@@ -35,7 +35,9 @@ def estatisticas(
     usuario: UsuarioLogado = Depends(exigir_senha_definitiva),
 ):
     """Próprio usuário, supervisor direto ou ADM, conforme a hierarquia."""
-    return nc_service.obter_estatisticas_colaborador(usuario, usuario_id)
+    return estatisticas_service_v2.obter_estatisticas_colaborador(
+        usuario, usuario_id
+    )
 
 
 @router.post("")
