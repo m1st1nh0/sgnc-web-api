@@ -1,11 +1,14 @@
-"""Estatísticas individuais com autorização explícita no backend."""
-from datetime import date, timedelta
+"""Estatísticas individuais com autorização explícita e ocorrência PR02."""
+from datetime import date
 
 from fastapi import HTTPException, status
 
 from app.auth import UsuarioLogado
 from app.supabase_client import cliente_servico
-from app.nc_service_v2 import STATUS_QUE_CONTAM_REINCIDENCIA
+from app.recurrence_v2 import (
+    STATUS_QUE_CONTAM_REINCIDENCIA,
+    inicio_janela_12_meses,
+)
 from app import nc_service as legacy
 
 
@@ -41,17 +44,22 @@ def obter_estatisticas_colaborador(
         )
 
     referencia = date.today()
-    data_inicial = referencia - timedelta(days=365)
+    data_inicial = inicio_janela_12_meses(referencia)
     resultado_ncs = (
         servico.table("nao_conformidades")
-        .select("id")
+        .select("id, data")
         .eq("colaborador_id", colaborador_id)
         .in_("status", STATUS_QUE_CONTAM_REINCIDENCIA)
         .gte("data", data_inicial.isoformat())
         .lte("data", referencia.isoformat())
         .execute()
     )
-    ids_ncs_12m = [nc["id"] for nc in resultado_ncs.data]
+    ncs_12m = resultado_ncs.data
+    ids_ncs_12m = [nc["id"] for nc in ncs_12m]
+    data_por_nc = {
+        nc["id"]: legacy._parsear_data(nc.get("data")) or date.min
+        for nc in ncs_12m
+    }
 
     linhas_causas = []
     if ids_ncs_12m:
@@ -76,24 +84,23 @@ def obter_estatisticas_colaborador(
                 "ultima_ocorrencia_numero": None,
                 "ultima_ocorrencia_nc_id": None,
                 "medida_sugerida": None,
+                "_ultima_chave": None,
             },
         )
         info["ocorrencias_12m"] += 1
-        numero = linha.get("ocorrencia_numero")
-        atual = info["ultima_ocorrencia_numero"]
-        if numero is not None and (atual is None or numero > atual):
-            info["ultima_ocorrencia_numero"] = numero
+
+        # O snapshot mais recente é escolhido pela data da NC e pelo id como
+        # desempate. Não usamos max(ocorrencia_numero), porque a janela móvel
+        # pode fazer a numeração diminuir quando ocorrências antigas expiram.
+        chave = (data_por_nc.get(linha["nc_id"], date.min), linha["nc_id"])
+        if info["_ultima_chave"] is None or chave > info["_ultima_chave"]:
+            info["_ultima_chave"] = chave
+            info["ultima_ocorrencia_numero"] = linha.get("ocorrencia_numero")
             info["ultima_ocorrencia_nc_id"] = linha["nc_id"]
-        elif numero is None and atual is None:
-            nc_ref = info["ultima_ocorrencia_nc_id"]
-            if nc_ref is None or linha["nc_id"] > nc_ref:
-                info["ultima_ocorrencia_nc_id"] = linha["nc_id"]
 
     for info in agrupado.values():
-        if info["ultima_ocorrencia_numero"] is None and info["ocorrencias_12m"] > 0:
-            info["ultima_ocorrencia_numero"] = info["ocorrencias_12m"]
-        # A recomendação disciplinar é informação interna da Qualidade.
-        if eh_adm:
+        info.pop("_ultima_chave", None)
+        if eh_adm and info["ultima_ocorrencia_numero"] is not None:
             info["medida_sugerida"] = legacy.decidir_medida_disciplina(
                 info["ultima_ocorrencia_numero"]
             )
