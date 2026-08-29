@@ -1,4 +1,4 @@
-name: PR01 production rollback smoke
+name: PR01 production smoke
 
 on:
   push:
@@ -11,7 +11,7 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Confirm Render reverted to pre-PR01 API
+      - name: Confirm Render deployed PR01 API
         shell: bash
         run: |
           set -euo pipefail
@@ -23,13 +23,12 @@ jobs:
           with open('openapi.json', encoding='utf-8') as f:
               doc = json.load(f)
           paths = doc.get('paths', {})
-          if '/usuarios/opcoes-nc' in paths:
-              print('PR01 route still present; Render rollback not propagated yet.')
+          required = ['/usuarios/opcoes-nc', '/insights']
+          missing = [p for p in required if p not in paths]
+          if missing:
+              print('PR01 routes not fully deployed yet. Missing:', missing)
               raise SystemExit(1)
-          if '/insights' not in paths:
-              print('Baseline /insights route missing unexpectedly.')
-              raise SystemExit(1)
-          print('Pre-PR01 API contract detected in production.')
+          print('PR01 API contract detected in production.')
           PY
               then
                 exit 0
@@ -37,5 +36,5 @@ jobs:
             fi
             sleep 10
           done
-          echo 'Render did not return to the pre-PR01 API contract within smoke window.' >&2
+          echo 'Render did not expose the PR01 API contract within smoke window.' >&2
           exit 1
