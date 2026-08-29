@@ -8,7 +8,6 @@ from collections import Counter, defaultdict
 from datetime import date
 
 from app.auth import UsuarioLogado
-from app.supabase_client import cliente_servico
 from app import insights_service as legacy
 from app import insights_service_v2 as base
 from app.recurrence_v2 import STATUS_QUE_CONTAM_REINCIDENCIA, eh_reincidencia
@@ -44,7 +43,9 @@ def obter_insights(
 
     inicio_efetivo = date.fromisoformat(resposta["periodo"]["inicio"])
     fim_efetivo = date.fromisoformat(resposta["periodo"]["fim"])
-    servico = cliente_servico()
+    # Reutiliza o mesmo ponto de injeção do serviço PR01. Isso mantém testes
+    # offline determinísticos e evita abrir clientes diferentes na mesma leitura.
+    servico = base.cliente_servico()
     equipe_ids = base._ids_equipe_direta(servico, usuario)
     todas_ncs = base._consulta_ncs_escopo(servico, equipe_ids)
 
@@ -64,10 +65,8 @@ def obter_insights(
         servico, list(ncs_por_id)
     )
 
-    # ---------------------------------------------------------
     # Colaborador: uma NC conta como reincidente quando ao menos uma das
     # causas já está na segunda ocorrência ou acima.
-    # ---------------------------------------------------------
     reincidencias_por_colaborador: Counter = Counter()
     for nc in ncs_periodo:
         if any(
@@ -81,10 +80,8 @@ def obter_insights(
         chave = item.get("colaborador_id") or item.get("colaborador") or "Não informado"
         item["reincidencias"] = reincidencias_por_colaborador[chave]
 
-    # ---------------------------------------------------------
     # Causa: reincidência é individual por relação NC-causa. Uma segunda
     # causa inédita na mesma NC não herda a reincidência da primeira.
-    # ---------------------------------------------------------
     reincidentes_por_causa: Counter = Counter()
     for nc in ncs_periodo:
         for causa in causas_por_nc.get(nc["id"], []):
@@ -94,12 +91,9 @@ def obter_insights(
     for item in resposta.get("ncs_por_causa", []):
         item["total_reincidentes"] = reincidentes_por_causa[item["causa_id"]]
 
-    # ---------------------------------------------------------
-    # Série específica de reincidência: mantém o nome de chave legado
+    # Série específica de reincidência: mantém a chave legada
     # ``reincidiu_apos_conclusao`` para não quebrar o frontend do PR01, mas
-    # seu valor agora segue a definição canônica de ocorrência > 1 na janela.
-    # O alias ``reincidencias_12m`` explicita a semântica nova para o PR04.
-    # ---------------------------------------------------------
+    # seu valor agora segue ocorrência > 1. O alias novo explicita a semântica.
     ocorrencias_por_causa: Counter = Counter()
     recorrencias_por_causa: Counter = Counter()
     descricao_por_causa: dict[int, str] = {}
