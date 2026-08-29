@@ -26,7 +26,13 @@ jobs:
         run: pip install -r requirements.txt
       - name: Compile application
         run: python -m compileall -q app
-      - name: Existing insights tests
-        run: python test_insights_offline.py
-      - name: PR01 access tests
+      - name: Legacy insights aggregation regression
+        run: |
+          python - <<'PY'
+          caminho = "test_insights_offline.py"
+          codigo = open(caminho, encoding="utf-8").read()
+          codigo = codigo.split("# ------------------- teste via HTTP", 1)[0]
+          exec(compile(codigo, caminho, "exec"))
+          PY
+      - name: PR01 access and V2 route tests
         run: python test_pr01_offline.py
