@@ -1,6 +1,4 @@
-"""
-Cadastro e gestão de usuários do sistema.
-"""
+"""Cadastro, gestão e diretório de usuários do SGNC."""
 from fastapi import HTTPException, status
 
 from app.auth import UsuarioLogado
@@ -20,20 +18,25 @@ def criar_usuario(usuario_logado: UsuarioLogado, dados) -> dict:
         )
 
     if len(dados.senha_inicial) < 6:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Senha inicial deve ter ao menos 6 caracteres.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Senha inicial deve ter ao menos 6 caracteres.",
+        )
 
     servico = cliente_servico()
 
     try:
-        resposta_auth = servico.auth.admin.create_user({
-            "email": dados.email,
-            "password": dados.senha_inicial,
-            "email_confirm": True,
-        })
-    except Exception as e:
+        resposta_auth = servico.auth.admin.create_user(
+            {
+                "email": dados.email,
+                "password": dados.senha_inicial,
+                "email_confirm": True,
+            }
+        )
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Não foi possível criar o login: {e}",
+            detail="Não foi possível criar o login. Verifique os dados informados.",
         )
 
     novo_id = resposta_auth.user.id
@@ -41,36 +44,75 @@ def criar_usuario(usuario_logado: UsuarioLogado, dados) -> dict:
     try:
         criado = (
             servico.table("usuarios")
-            .insert({
-                "id": novo_id,
-                "nome": dados.nome,
-                "email": dados.email,
-                "papel": dados.papel,
-                "setor": dados.setor,
-                "supervisor_id": dados.supervisor_id,
-                "senha_provisoria": True,
-            })
+            .insert(
+                {
+                    "id": novo_id,
+                    "nome": dados.nome,
+                    "email": dados.email,
+                    "papel": dados.papel,
+                    "setor": dados.setor,
+                    "supervisor_id": dados.supervisor_id,
+                    "senha_provisoria": True,
+                }
+            )
             .execute()
         )
-    except Exception as e:
+    except Exception:
         servico.auth.admin.delete_user(novo_id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Não foi possível cadastrar o usuário: {e}",
+            detail="Não foi possível cadastrar o usuário.",
         )
 
     return criado.data[0]
 
 
+def _consulta_usuarios_por_escopo(usuario_logado: UsuarioLogado, selecao: str):
+    """Retorna uma consulta de usuários limitada ao papel do solicitante.
+
+    - ADM: organização inteira;
+    - Supervisor: somente subordinados diretos;
+    - Funcionário: somente o próprio cadastro.
+
+    O escopo é calculado pelo servidor a partir do usuário autenticado; o
+    navegador nunca escolhe um ``supervisor_id`` para ampliar a consulta.
+    """
+    consulta = cliente_servico().table("usuarios").select(selecao)
+    if usuario_logado.papel == "supervisor":
+        consulta = consulta.eq("supervisor_id", usuario_logado.id)
+    elif usuario_logado.papel != "adm":
+        consulta = consulta.eq("id", usuario_logado.id)
+    return consulta
+
+
 def listar_usuarios(usuario_logado: UsuarioLogado) -> list[dict]:
-    cliente = cliente_do_usuario(usuario_logado.token)
     resultado = (
-        cliente.table("usuarios")
-        .select("id, nome, email, papel, setor, supervisor_id, ativo, senha_provisoria")
+        _consulta_usuarios_por_escopo(
+            usuario_logado,
+            "id, nome, email, papel, setor, supervisor_id, ativo, senha_provisoria",
+        )
         .order("nome")
         .execute()
     )
     return resultado.data
+
+
+def listar_opcoes_nc(usuario_logado: UsuarioLogado) -> list[dict]:
+    """Diretório mínimo para selecionar o colaborador de uma NC.
+
+    Usa o mesmo escopo de equipe da listagem de usuários, mas não expõe
+    email, papel, status de senha ou outros dados administrativos.
+    """
+    resultado = (
+        _consulta_usuarios_por_escopo(usuario_logado, "id, nome, setor, ativo")
+        .eq("ativo", True)
+        .order("nome")
+        .execute()
+    )
+    return [
+        {"id": u["id"], "nome": u["nome"], "setor": u.get("setor")}
+        for u in resultado.data
+    ]
 
 
 def editar_usuario(usuario_logado: UsuarioLogado, usuario_id: str, dados) -> dict:
@@ -83,23 +125,26 @@ def editar_usuario(usuario_logado: UsuarioLogado, usuario_id: str, dados) -> dic
             detail="supervisor_id é obrigatório para papel 'funcionario' ou 'supervisor'.",
         )
 
-    # Usa service_role para garantir que o ADM consegue editar qualquer usuário
-    # mesmo que RLS de SELECT não cubra todos os casos
     servico = cliente_servico()
     resultado = (
         servico.table("usuarios")
-        .update({
-            "nome": dados.nome,
-            "papel": dados.papel,
-            "setor": dados.setor,
-            "supervisor_id": dados.supervisor_id if dados.papel != "adm" else None,
-        })
+        .update(
+            {
+                "nome": dados.nome,
+                "papel": dados.papel,
+                "setor": dados.setor,
+                "supervisor_id": dados.supervisor_id if dados.papel != "adm" else None,
+            }
+        )
         .eq("id", usuario_id)
         .execute()
     )
 
     if not resultado.data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado.",
+        )
 
     return resultado.data[0]
 
@@ -112,11 +157,9 @@ def desativar_usuario(usuario_logado: UsuarioLogado, usuario_id: str) -> dict:
         )
 
     servico = cliente_servico()
-
-    # Desativa no Auth (impede login)
-    servico.auth.admin.update_user_by_id(usuario_id, {"ban_duration": "876000h"})
-
-    # Marca como inativo na nossa tabela
+    servico.auth.admin.update_user_by_id(
+        usuario_id, {"ban_duration": "876000h"}
+    )
     resultado = (
         servico.table("usuarios")
         .update({"ativo": False})
@@ -125,17 +168,16 @@ def desativar_usuario(usuario_logado: UsuarioLogado, usuario_id: str) -> dict:
     )
 
     if not resultado.data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
-
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado.",
+        )
     return resultado.data[0]
 
 
 def reativar_usuario(usuario_logado: UsuarioLogado, usuario_id: str) -> dict:
     servico = cliente_servico()
-
-    # Remove o ban no Auth
     servico.auth.admin.update_user_by_id(usuario_id, {"ban_duration": "none"})
-
     resultado = (
         servico.table("usuarios")
         .update({"ativo": True})
@@ -144,8 +186,10 @@ def reativar_usuario(usuario_logado: UsuarioLogado, usuario_id: str) -> dict:
     )
 
     if not resultado.data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
-
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado.",
+        )
     return resultado.data[0]
 
 
@@ -153,21 +197,29 @@ def trocar_senha(usuario_logado: UsuarioLogado, dados) -> None:
     cliente = cliente_do_usuario(usuario_logado.token)
 
     if len(dados.senha_nova) < 6:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nova senha deve ter ao menos 6 caracteres.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nova senha deve ter ao menos 6 caracteres.",
+        )
 
     try:
-        cliente.auth.sign_in_with_password({
-            "email": usuario_logado.email,
-            "password": dados.senha_atual,
-        })
+        cliente.auth.sign_in_with_password(
+            {"email": usuario_logado.email, "password": dados.senha_atual}
+        )
     except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Senha atual incorreta.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Senha atual incorreta.",
+        )
 
     try:
         cliente.auth.update_user({"password": dados.senha_nova})
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Não foi possível trocar a senha: {e}")
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Não foi possível trocar a senha.",
+        )
 
-    cliente_servico().table("usuarios").update({"senha_provisoria": False}).eq(
-        "id", usuario_logado.id
-    ).execute()
+    cliente_servico().table("usuarios").update(
+        {"senha_provisoria": False}
+    ).eq("id", usuario_logado.id).execute()
