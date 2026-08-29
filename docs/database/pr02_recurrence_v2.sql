@@ -164,7 +164,7 @@ with relacoes_validas as (
         rel.causa_id,
         nc.colaborador_id,
         nc.data,
-        pg_catalog.coalesce(nc.validado_em, nc.criado_em) as momento
+        coalesce(nc.validado_em, nc.criado_em) as momento
     from public.nc_causas as rel
     join public.nao_conformidades as nc on nc.id = rel.nc_id
     where nc.colaborador_id is not null
