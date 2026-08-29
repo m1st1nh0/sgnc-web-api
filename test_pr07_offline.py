@@ -143,7 +143,7 @@ main_fonte = Path("app/main.py").read_text(encoding="utf-8")
 assert "pr01._ids_equipe_direta" in servico_fonte
 assert '.in_("colaborador_id", equipe_ids)' in servico_fonte
 assert "ocorrencia_numero" in servico_fonte
-assert "reincidencia")" not in servico_fonte
+assert 'nc.get("reincidencia")' not in servico_fonte
 assert "url_temporaria" not in servico_fonte
 
 # Downloads são gestão-only e resistentes a content sniffing.
