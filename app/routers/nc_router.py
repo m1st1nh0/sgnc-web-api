@@ -12,7 +12,7 @@ from app.schemas_nc import (
     NcEntrada,
     NcFeedback,
 )
-from app import nc_service_v2 as nc_service
+from app import nc_service_pr02 as nc_service
 from app.supabase_client import cliente_do_usuario
 
 router = APIRouter(prefix="/nc", tags=["não conformidades"])
