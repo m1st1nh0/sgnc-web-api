@@ -1,8 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-# PR01: mantém helpers legados de reincidência compatíveis com o status novo.
-from app import flow_compat  # noqa: F401
 from app.routers import (
     auth_router,
     nc_router,
@@ -20,10 +17,6 @@ app.add_middleware(
         "https://sgnc-web-frontend.vercel.app",
         "https://sgnc-web-frontend-git-refa-bfa2cb-lukaschamposki-7496s-projects.vercel.app",
     ],
-    allow_origin_regex=(
-        r"https://sgnc-web-frontend-git-[a-z0-9-]+-"
-        r"lukaschamposki-7496s-projects\.vercel\.app"
-    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
