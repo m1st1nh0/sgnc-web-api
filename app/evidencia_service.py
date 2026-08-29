@@ -46,9 +46,10 @@ def anexar_evidencia(usuario: UsuarioLogado, nc_id: int, arquivo: UploadFile) ->
         )
     except Exception:
         # Evita arquivo órfão se o registro no banco falhar após o Storage aceitar.
+        # A limpeza é best-effort para não mascarar a falha original do banco.
         try:
             servico.storage.from_(NOME_BUCKET).remove([caminho_storage])
-        finally:
+        except Exception:
             pass
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
