@@ -12,6 +12,10 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: http://localhost:54321
+      SUPABASE_ANON_KEY: offline-test-key
+      SUPABASE_SERVICE_ROLE_KEY: offline-test-service-key
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
