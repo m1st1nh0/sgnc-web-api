@@ -3,7 +3,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query
 
 from app.auth import UsuarioLogado, exigir_gestao
-from app import insights_service_v2 as insights_service
+from app import insights_service_pr02 as insights_service
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
