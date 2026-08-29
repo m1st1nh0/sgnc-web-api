@@ -25,7 +25,7 @@ def listar(
 def opcoes_nc(
     usuario: UsuarioLogado = Depends(exigir_senha_definitiva),
 ):
-    """Diretório mínimo, com o mesmo escopo, para selecionar alvo de NC."""
+    """Diretório mínimo global de colaboradores ativos para abertura de NC."""
     return usuario_service.listar_opcoes_nc(usuario)
 
 
