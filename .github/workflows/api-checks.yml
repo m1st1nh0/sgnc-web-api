@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, pr01-access-scope-feedback-flow, pr02-reincidencia-v2, pr03-workflow-atomic-timeline, pr04-insights-api-v2]
+    branches: [main, pr01-access-scope-feedback-flow, pr02-reincidencia-v2, pr03-workflow-atomic-timeline, pr04-insights-api-v2, pr08-security-hardening]
 
 permissions:
   contents: read
@@ -42,3 +42,5 @@ jobs:
         run: python test_pr03_offline.py
       - name: PR04 Insights API V2 tests
         run: python test_pr04_offline.py
+      - name: PR08 security hardening tests
+        run: python test_pr08_offline.py

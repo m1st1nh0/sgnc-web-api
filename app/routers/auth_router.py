@@ -1,21 +1,26 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
 from app.schemas_auth import LoginEntrada, LoginSaida
 from app.supabase_client import cliente_do_usuario
 from app.config import SUPABASE_URL, SUPABASE_ANON_KEY
+from app.security_hardening import LOGIN_RATE_LIMITER
 from supabase import create_client
 
 router = APIRouter(prefix="/auth", tags=["autenticação"])
 
 
 @router.post("/login", response_model=LoginSaida)
-def login(dados: LoginEntrada):
-    """Autentica no Supabase Auth e devolve o token que o React deve
-    guardar e enviar em toda requisição seguinte
-    (cabeçalho Authorization: Bearer <token>)."""
+def login(dados: LoginEntrada, request: Request):
+    """Autentica no Supabase Auth e devolve o token da sessão.
 
-    # Para o login em si ainda não temos um token, então usamos um
-    # cliente "anônimo" temporário só para chamar sign_in.
+    O throttle local é defesa em profundidade aos limites do Supabase Auth e
+    considera a combinação normalizada de email + peer da conexão, armazenada
+    somente como hash em memória.
+    """
+    peer = request.client.host if request.client else None
+    chave_rate_limit = LOGIN_RATE_LIMITER.chave(str(dados.email), peer)
+    LOGIN_RATE_LIMITER.verificar(chave_rate_limit)
+
     cliente_anonimo = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
     try:
@@ -23,21 +28,27 @@ def login(dados: LoginEntrada):
             {"email": dados.email, "password": dados.senha}
         )
     except Exception:
+        LOGIN_RATE_LIMITER.registrar_falha(chave_rate_limit)
+        LOGIN_RATE_LIMITER.verificar(chave_rate_limit)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou senha inválidos.",
         )
 
     if resposta.session is None or resposta.user is None:
+        LOGIN_RATE_LIMITER.registrar_falha(chave_rate_limit)
+        LOGIN_RATE_LIMITER.verificar(chave_rate_limit)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou senha inválidos.",
         )
 
+    # Credencial correta: não mantemos penalidade de tentativas anteriores.
+    LOGIN_RATE_LIMITER.registrar_sucesso(chave_rate_limit)
+
     token = resposta.session.access_token
     usuario_id = resposta.user.id
 
-    # Agora sim, com o token em mãos, buscamos o papel/nome respeitando RLS
     cliente = cliente_do_usuario(token)
     resultado = (
         cliente.table("usuarios")
