@@ -49,6 +49,7 @@ assert "from public, anon, authenticated" in sql_normalizado
 assert "to service_role" in sql_normalizado
 assert "ocorrencia_numero" in sql
 assert "timedelta(days=365)" not in sql
+assert "pg_catalog.coalesce" not in sql.lower()
 
 
 # A camada de aplicação deve delegar a transição procedente para a RPC e
