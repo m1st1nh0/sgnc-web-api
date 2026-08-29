@@ -12,7 +12,7 @@ from app.schemas_nc import (
     NcEntrada,
     NcFeedback,
 )
-from app import nc_service_pr02 as nc_service
+from app import nc_service_pr03 as nc_service
 from app.supabase_client import cliente_do_usuario
 
 router = APIRouter(prefix="/nc", tags=["não conformidades"])
@@ -30,6 +30,15 @@ def causas_conhecidas(
 ):
     cliente = cliente_do_usuario(usuario.token)
     return nc_service.listar_causas_conhecidas(cliente)
+
+
+@router.get("/{nc_id}/timeline")
+def timeline(
+    nc_id: int,
+    usuario: UsuarioLogado = Depends(exigir_senha_definitiva),
+):
+    """Timeline auditável e durações do ciclo da NC visível ao usuário."""
+    return nc_service.obter_timeline(usuario, nc_id)
 
 
 @router.get("/{nc_id}")
