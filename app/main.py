@@ -36,4 +36,8 @@ app.include_router(insights_router.router)
 
 @app.get("/")
 def raiz():
-    return {"status": "ok", "servico": "SGNC API"}
+    return {
+        "status": "ok",
+        "servico": "SGNC API",
+        "dominio": "recorrencia-v2",
+    }
