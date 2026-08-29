@@ -1,21 +1,8 @@
-"""
-Dependência de autenticação usada em (quase) toda rota da API.
-
-Como funciona na prática:
-1. O React manda o token no cabeçalho: "Authorization: Bearer <token>"
-2. O FastAPI chama usuario_atual() automaticamente antes de rodar
-   a função da rota (isso é o que "Depends(usuario_atual)" faz)
-3. usuario_atual() valida o token com o Supabase e devolve os
-   dados do usuário (id, papel, nome) já carregados da tabela
-   `usuarios`
-
-Se o token for inválido/expirado, a API responde 401 automaticamente
-e a função da rota nem chega a ser executada.
-"""
+"""Dependências de autenticação e autorização da API SGNC."""
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.supabase_client import cliente_do_usuario
 
@@ -29,16 +16,16 @@ class UsuarioLogado:
     email: str
     papel: str  # "adm" | "supervisor" | "funcionario"
     senha_provisoria: bool
-    token: str  # guardamos o token para repassar nas próximas consultas
+    token: str
 
 
 def usuario_atual(
     credenciais: HTTPAuthorizationCredentials = Depends(seguranca),
 ) -> UsuarioLogado:
+    """Valida o token no Supabase Auth e carrega o perfil SGNC do usuário."""
     token = credenciais.credentials
     cliente = cliente_do_usuario(token)
 
-    # Valida o token junto ao Supabase Auth e recupera o id do usuário
     resposta_auth = cliente.auth.get_user(token)
     if resposta_auth is None or resposta_auth.user is None:
         raise HTTPException(
@@ -47,9 +34,6 @@ def usuario_atual(
         )
 
     usuario_id = resposta_auth.user.id
-
-    # Busca o papel/nome na nossa tabela usuarios (respeitando RLS:
-    # a policy "usuarios_ler_proprio" garante que ele pode ler a si mesmo)
     resultado = (
         cliente.table("usuarios")
         .select("id, nome, email, papel, ativo, senha_provisoria")
@@ -81,32 +65,39 @@ def usuario_atual(
     )
 
 
-def exigir_adm(usuario: UsuarioLogado = Depends(usuario_atual)) -> UsuarioLogado:
-    """Dependência extra para rotas que só o ADM pode chamar.
+def exigir_senha_definitiva(
+    usuario: UsuarioLogado = Depends(usuario_atual),
+) -> UsuarioLogado:
+    """Bloqueia operações de negócio até a troca da senha provisória.
 
-    Nota: isso é uma camada de conveniência/clareza na API. A garantia
-    "de verdade" continua sendo o RLS no banco — mesmo que esta checagem
-    tivesse algum bug, o Supabase rejeitaria a operação de qualquer forma.
+    A rota de troca de senha continua dependendo diretamente de
+    ``usuario_atual`` para que o primeiro acesso consiga completar o fluxo.
     """
-    if usuario.papel != "adm":
+    if usuario.senha_provisoria:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas o administrador (ticket manager) pode fazer isso.",
+            detail="Troque a senha provisória antes de continuar.",
         )
     return usuario
 
 
-def exigir_gestao(usuario: UsuarioLogado = Depends(usuario_atual)) -> UsuarioLogado:
-    """Dependência para rotas abertas a ADM e supervisores (ex: Insights).
+def exigir_adm(
+    usuario: UsuarioLogado = Depends(exigir_senha_definitiva),
+) -> UsuarioLogado:
+    if usuario.papel != "adm":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Apenas o administrador (Qualidade) pode fazer isso.",
+        )
+    return usuario
 
-    Nota: assim como exigir_adm, é uma camada de clareza da API. A
-    garantia "de verdade" continua sendo o RLS no banco.
-    """
+
+def exigir_gestao(
+    usuario: UsuarioLogado = Depends(exigir_senha_definitiva),
+) -> UsuarioLogado:
     if usuario.papel not in {"adm", "supervisor"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Acesso restrito a administradores e supervisores."
-            ),
+            detail="Acesso restrito a administradores e supervisores.",
         )
     return usuario
