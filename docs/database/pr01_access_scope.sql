@@ -21,7 +21,7 @@ set search_path = ''
 as $$
     select u.papel
       from public.usuarios as u
-     where u.id = auth.uid();
+     where u.id = (select auth.uid());
 $$;
 
 create or replace function private.e_meu_subordinado(alvo_id uuid)
@@ -35,7 +35,7 @@ as $$
         select 1
           from public.usuarios as u
          where u.id = alvo_id
-           and u.supervisor_id = auth.uid()
+           and u.supervisor_id = (select auth.uid())
     );
 $$;
 
@@ -58,6 +58,8 @@ $$;
 -- =============================================================
 -- 2. RLS de usuários: ADM global; supervisor equipe direta;
 --    funcionário somente o próprio cadastro.
+--    O diretório mínimo global para abertura de NC NÃO usa esta policy:
+--    ele é entregue pelo FastAPI com service_role e somente id/nome/setor.
 -- =============================================================
 
 drop policy if exists usuarios_adm_le_todos on public.usuarios;
