@@ -1,4 +1,4 @@
-name: PR03 production smoke
+name: PR04 production smoke
 
 on:
   push:
@@ -11,7 +11,7 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Confirm Render deployed PR03 API
+      - name: Confirm Render deployed PR04 API
         shell: bash
         run: |
           set -euo pipefail
@@ -30,9 +30,16 @@ jobs:
           ]
           missing = [path for path in required if path not in paths]
           if missing:
-              print('PR03 contract not fully deployed yet. Missing:', missing)
+              print('PR04 contract not fully deployed yet. Missing:', missing)
               raise SystemExit(1)
-          print('PR03 API contract detected in production.')
+
+          insights_get = paths.get('/insights', {}).get('get', {})
+          description = insights_get.get('description', '')
+          if 'Insights V2' not in description:
+              print('PR04 Insights V2 marker not deployed yet:', description)
+              raise SystemExit(1)
+
+          print('PR04 Insights V2 API contract detected in production.')
           PY
               then
                 exit 0
@@ -40,5 +47,5 @@ jobs:
             fi
             sleep 10
           done
-          echo 'Render did not expose the PR03 API contract within smoke window.' >&2
+          echo 'Render did not expose the PR04 Insights V2 contract within smoke window.' >&2
           exit 1
