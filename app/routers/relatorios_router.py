@@ -2,11 +2,42 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Query, Response
 
-from app.auth import UsuarioLogado, exigir_gestao
-from app import relatorios_service
+from app.auth import UsuarioLogado, exigir_gestao, exigir_senha_definitiva
+from app import relatorios_service, relatorio_documentos
 
 
 router = APIRouter(prefix="/relatorios", tags=["relatórios"])
+
+
+def _pdf_response(conteudo: bytes, nome: str) -> Response:
+    return Response(
+        content=conteudo,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{nome}"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get("/usuarios/{usuario_id}/dossie.pdf")
+def exportar_dossie_colaborador(
+    usuario_id: str,
+    usuario: UsuarioLogado = Depends(exigir_senha_definitiva),
+):
+    """Baixa o resumo individual autorizado do colaborador em PDF."""
+    conteudo, nome = relatorio_documentos.gerar_pdf_dossie(usuario, usuario_id)
+    return _pdf_response(conteudo, nome)
+
+
+@router.get("/nc/{nc_id}.pdf")
+def exportar_relatorio_nc(
+    nc_id: int,
+    usuario: UsuarioLogado = Depends(exigir_senha_definitiva),
+):
+    """Baixa a NC autorizada com evidências incorporadas ao documento."""
+    conteudo, nome = relatorio_documentos.gerar_pdf_nc(usuario, nc_id)
+    return _pdf_response(conteudo, nome)
 
 
 @router.get("/ncs.csv")
@@ -49,11 +80,4 @@ def exportar_resumo_pdf(
         inicio,
         fim,
     )
-    return Response(
-        content=conteudo,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="{nome}"',
-            "X-Content-Type-Options": "nosniff",
-        },
-    )
+    return _pdf_response(conteudo, nome)
