@@ -274,7 +274,7 @@ def _montar_pdf_nc(nc: dict, evidencias: list[dict], historico: list[dict]) -> b
             try:
                 image = PdfImage(BytesIO(evidence["bytes"]))
                 image._restrictSize(72 * mm, 52 * mm)
-                image_items.append([image, Paragraph(escape(nome), styles["small"])])
+                image_items.append([Table([[image], [Paragraph(escape(nome), styles["small"])]], colWidths=[width - 20])])
             except Exception:
                 image_items.append([Paragraph(f"Imagem: {escape(nome)}", styles["body-sgnc"])])
         else:
