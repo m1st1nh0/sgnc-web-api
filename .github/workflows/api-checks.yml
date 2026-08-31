@@ -44,3 +44,5 @@ jobs:
         run: python test_pr04_offline.py
       - name: PR07 report tests
         run: python test_pr07_offline.py
+      - name: PR08 onboarding hybrid tests
+        run: python test_pr08_onboarding_offline.py
